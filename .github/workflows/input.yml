@@ -1,0 +1,79 @@
+name: CLI Binary Artifact Build
+
+on:
+  push:
+    branches: ["feature/core-12416_update_build_version_for_cli_artifact"]  #change to  branches: ["dev", "master"]
+  workflow_dispatch:
+    branches:
+      - "**"
+    inputs:
+      version_input:
+        description: 'Custom version input'
+        required: false
+        type: string
+        
+env:
+  # Check build script for different mode  
+  ENV: "dev"
+
+jobs:
+
+  release:
+    # to check if the event triggered by workflow
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: Release
+        uses: codfish/semantic-release-action@v2.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          echo $RELEASE_VERSION
+          echo $RELEASE_MAJOR
+          echo $RELEASE_MINOR
+          echo $RELEASE_PATCH
+      - id: create
+        run:
+         echo "release_version_cli=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+    outputs:
+        cli_release_version: ${{ steps.create.outputs.release_version_cli }} 
+
+  build:
+    runs-on: ubuntu-latest
+    needs: release 
+    if: always()
+    env:
+        #local variable 
+        CLI_VERSION_SEM_VAR:
+    steps:
+      - name: Set version number
+        run: |
+          if [[ '${{needs.release.outputs.cli_release_version}}' != '' ]]; then
+            echo "CLI_VERSION_SEM_VAR=${{needs.release.outputs.cli_release_version}}" >> $GITHUB_ENV
+          else
+            echo "CLI_VERSION_SEM_VAR=${{ github.event.inputs.version_input }}" >> $GITHUB_ENV
+          fi
+          echo ${{env.CLI_VERSION_SEM_VAR}} ${{needs.release.outputs.cli_release_version}}
+      - name: Check if the CLI_VERSION_SEM_VAR is not empty,if empty exit the job
+        run: |           # Exit the job if the condition is not met
+          if [ $CLI_VERSION_SEM_VAR == "" ]; then
+            echo "CLI_VERSION_SEM_VAR is empty, exiting the build job..."
+            exit 1
+          fi
+      - name: Set common branch
+        run: |
+          if [[ '${{ github.event.inputs.common_branch }}' != '' ]]; then
+            echo "BRANCH=${{ github.event.inputs.common_branch }}" >> $GITHUB_ENV
+          else
+            echo "BRANCH=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          fi
+      - name: Checkout current repo
+        uses: actions/checkout@v3
+        with:
+          path: ${{ github.event.repository.name }} 
+      - name: Build CLI Binary Artifact
+        run: |
+          ./build.sh ${{env.CLI_VERSION_SEM_VAR}}
+        working-directory: ${{ github.event.repository.name }} 
