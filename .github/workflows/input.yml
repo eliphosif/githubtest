@@ -57,7 +57,8 @@ jobs:
           fi
           echo ${{env.CLI_VERSION_SEM_VAR}} ${{needs.release.outputs.cli_release_version}}
       - name: Check if the CLI_VERSION_SEM_VAR is not empty,if empty exit the job
-        run: |           # Exit the job if the condition is not met
+        run: |           # Exit the job if the condition is not met        
+          echo $CLI_VERSION_SEM_VAR
           if [ $CLI_VERSION_SEM_VAR == "" ]; then
             echo "CLI_VERSION_SEM_VAR is empty, exiting the build job..."
             exit 1
